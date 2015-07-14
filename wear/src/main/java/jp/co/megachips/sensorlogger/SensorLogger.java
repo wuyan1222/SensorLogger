@@ -21,11 +21,13 @@ import java.io.IOException;
 import java.util.LinkedList;
 import java.util.Queue;
 
-public class SensorLogger extends WearableActivity implements SensorEventListener {
+public class SensorLogger extends WearableActivity implements Runnable, SensorEventListener {
 
     private final int SamplingPeriodUs = 10 * 1000;
     private final int MaxReportLatencyUs = 0 * 1000 * 1000;
+    private int mOverFlow = 0;
 
+    private final Thread mThread = new Thread(this);
     private TextView mTextView = null;
     private SensorManager mSensorManager;
     private FileOutputStream mFS = null;
@@ -73,26 +75,83 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
         return 0;
     }
 
-    private class SensorEventContainer {
-        public long timestamp;
+    public class SensorData {
+        public long timestamp = 0;
         public final float[] values = new float[3];
-
-        public SensorEventContainer(SensorEvent event) {
-            timestamp = event.timestamp;
-            values[0] = event.values[0];
-            values[1] = event.values[1];
-            values[2] = event.values[2];
+    }
+    class SensorEventQueue {
+        private SensorData[] mRingData = null;
+        private int mDepth;
+        private int mNum;
+        private int mTop, mBot;
+        SensorEventQueue(int depth) {
+            mDepth = depth;
+            mRingData = new SensorData[depth];
+            for(int i = 0; i < mDepth; i++){
+                mRingData[i] = new SensorData();
+            }
         }
-    };
-
-    Queue<SensorEventContainer> mAcclQueue = new LinkedList<SensorEventContainer>();
-    Queue<SensorEventContainer> mMagnQueue = new LinkedList<SensorEventContainer>();
-    Queue<SensorEventContainer> mGyroQueue = new LinkedList<SensorEventContainer>();
+        synchronized boolean push(SensorData data) {
+            boolean ret;
+            if(mNum == mDepth){
+                ret = false;
+            }
+            else if(data != null){
+                mRingData[mBot].timestamp = data.timestamp;
+                mRingData[mBot].values[0] = data.values[0];
+                mRingData[mBot].values[1] = data.values[1];
+                mRingData[mBot].values[2] = data.values[2];
+                mNum++; mBot++;
+                if(mDepth <= mBot){
+                    mBot = 0;
+                }
+                ret = true;
+            }
+            else{
+                ret = false;
+            }
+            return ret;
+        }
+        synchronized int size() { return mNum; }
+        synchronized boolean peek(SensorData data) {
+            boolean ret;
+            if(mNum <= 0){
+                mNum = 0;
+                ret = false;
+            }
+            else if(data != null){
+                data.timestamp = mRingData[mTop].timestamp;
+                data.values[0] = mRingData[mTop].values[0];
+                data.values[1] = mRingData[mTop].values[1];
+                data.values[2] = mRingData[mTop].values[2];
+                ret = true;
+            }
+            else{
+                ret = false;
+            }
+            return ret;
+        }
+        synchronized boolean pop(SensorData data) {
+            boolean ret = peek(data);
+            if(ret){
+                mNum--; mTop++;
+                if(mDepth <= mTop){
+                    mTop = 0;
+                }
+            }
+            return ret;
+        }
+    }
+    SensorEventQueue mAcclQueue = null;
+    SensorEventQueue mMagnQueue = null;
+    SensorEventQueue mGyroQueue = null;
+    SensorData mQueueR = null;
+    SensorData mQueueW = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-//        setAmbientEnabled();
+        setAmbientEnabled();
         setContentView(R.layout.activity_sensor_logger);
         mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
         final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
@@ -117,18 +176,29 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
             try {
                 mFS = new FileOutputStream(file);
                 mPW = new PrintWriter(mFS);
-            } catch (FileNotFoundException e) {
+            }
+            catch (FileNotFoundException e) {
             }
         }
         if(mSensorManager != null) {
+            mThread.setPriority(Thread.MAX_PRIORITY);
+            mThread.start();
+            // create Queue
+            mAcclQueue = new SensorEventQueue(100);
+            mMagnQueue = new SensorEventQueue(100);
+            mGyroQueue = new SensorEventQueue(100);
+            mQueueR = new SensorData();
+            mQueueW = new SensorData();
+            // Regist sensors
             mAcclType = SensorRegsit(mAcclPriorList, MaxReportLatencyUs);
-            mMagnType = SensorRegsit(mMagnPriorList, 0);
-            mGyroType = SensorRegsit(mGyroPriorList, 0);
+            mMagnType = SensorRegsit(mMagnPriorList, MaxReportLatencyUs);
+            mGyroType = SensorRegsit(mGyroPriorList, MaxReportLatencyUs);
             if(mTextView != null){
                 String str = "";
                 str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
                 str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
                 str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
+                mTextView.setText(str);
             }
         }
     }
@@ -150,17 +220,34 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
 
     @Override
     protected void onDestroy() {
-        if(mSensorManager != null) {
-            mSensorManager.unregisterListener(this);
+        try {
+            synchronized (mThread) {
+                if(mSensorManager != null) {
+                    mSensorManager.unregisterListener(this);
+                    mSensorManager = null;
+                }
+                mThread.notify();
+            }
+            mThread.join();
+            mAcclQueue = null;
+            mMagnQueue = null;
+            mGyroQueue = null;
+            mQueueR = null;
+            mQueueW = null;
+        }
+        catch (Exception e) {
         }
         if(mPW != null) {
             mPW.close();
+            mPW = null;
         }
         if(mFS != null) {
             try {
                 mFS.flush();
                 mFS.close();
-            } catch (IOException e) {
+                mFS = null;
+            }
+            catch (IOException e) {
             }
         }
         super.onDestroy();
@@ -168,10 +255,7 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
 
     private boolean isExternalStorageWritable() {
         String state = Environment.getExternalStorageState();
-        if (Environment.MEDIA_MOUNTED.equals(state)) {
-            return true;
-        }
-        return false;
+        return Environment.MEDIA_MOUNTED.equals(state);
     }
 
     private boolean FlushData() {
@@ -188,39 +272,37 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
         }
         if(enable) {
             if (mCounter == 0) {
-                long counter;
                 if(mAcclType != 0) {
-                    counter = mAcclQueue.peek().timestamp;
-                    if (mCounter < counter) {
-                        mCounter = counter;
+                    mAcclQueue.peek(mQueueR);
+                    if (mCounter < mQueueR.timestamp) {
+                        mCounter = mQueueR.timestamp;
                     }
                 }
                 if(mMagnType != 0) {
-                    counter = mMagnQueue.peek().timestamp;
-                    if (mCounter < counter) {
-                        mCounter = counter;
+                    mMagnQueue.peek(mQueueR);
+                    if (mCounter < mQueueR.timestamp) {
+                        mCounter = mQueueR.timestamp;
                     }
                 }
                 if(mGyroType != 0) {
-                    counter = mGyroQueue.peek().timestamp;
-                    if (mCounter < counter) {
-                        mCounter = counter;
+                    mGyroQueue.peek(mQueueR);
+                    if (mCounter < mQueueR.timestamp) {
+                        mCounter = mQueueR.timestamp;
                     }
                 }
             }
-            str += String.format("0x%x 0x%x", mCounter/1000000000, mCounter);
-            SensorEventContainer event;
+            str += String.format("0x%x 0x%x", System.currentTimeMillis(), mCounter);
             if(mGyroType != 0) {
-                while ((event = mGyroQueue.peek()) != null) {
-                    if (mCounter <= event.timestamp) {
-                        str += String.format(" %e %e %e", event.values[0], event.values[1], event.values[2]);
+                while ( mGyroQueue.peek(mQueueR) ) {
+                    if (mCounter <= mQueueR.timestamp) {
+                        str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
                     }
                     else {
-                        mGyroQueue.poll();
+                        mGyroQueue.pop(mQueueR);
                     }
                 }
-                if(event == null){
+                if(mGyroQueue.size() == 0){
                     enable = false;
                 }
             }
@@ -228,16 +310,16 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
                 str += " na na na";
             }
             if(mAcclType != 0) {
-                while ((event = mAcclQueue.peek()) != null) {
-                    if (mCounter <= event.timestamp) {
-                        str += String.format(" %e %e %e", event.values[0]/9.8, event.values[1]/9.8, event.values[2]/9.8);
+                while ( mAcclQueue.peek(mQueueR) ) {
+                    if (mCounter <= mQueueR.timestamp) {
+                        str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
                     }
                     else {
-                        mAcclQueue.poll();
+                        mAcclQueue.pop(mQueueR);
                     }
                 }
-                if(event == null){
+                if(mAcclQueue.size() == 0){
                     enable = false;
                 }
             }
@@ -245,16 +327,16 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
                 str += " na na na";
             }
             if(mMagnType != 0) {
-                while ((event = mMagnQueue.peek()) != null) {
-                    if (mCounter <= event.timestamp) {
-                        str += String.format(" %e %e %e", event.values[0], event.values[1], event.values[2]);
+                while ( mMagnQueue.peek(mQueueR) ) {
+                    if (mCounter <= mQueueR.timestamp) {
+                        str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
                     }
                     else {
-                        mMagnQueue.poll();
+                        mMagnQueue.pop(mQueueR);
                     }
                 }
-                if(event == null){
+                if(mMagnQueue.size() == 0){
                     enable = false;
                 }
             }
@@ -271,20 +353,48 @@ public class SensorLogger extends WearableActivity implements SensorEventListene
     }
 
     @Override
+    public void run() {
+        try {
+            while (true) {
+                synchronized (mThread) {
+                    if(mSensorManager == null){
+                        break;
+                    }
+                    mThread.wait();
+                }
+                while ( FlushData() );
+            }
+        }
+        catch (Exception e) {
+        }
+    }
+
+    @Override
     public void onSensorChanged(SensorEvent event) {
         if(mTextView != null) {
+            boolean push_ret = true;
             int type = event.sensor.getType();
+            mQueueW.timestamp = event.timestamp;
+            mQueueW.values[0] = event.values[0];
+            mQueueW.values[1] = event.values[1];
+            mQueueW.values[2] = event.values[2];
             if(type == mAcclType) {
-                mAcclQueue.add(new SensorEventContainer(event));
+                push_ret = mAcclQueue.push(mQueueW);
             }
             else if(type == mMagnType) {
-                mMagnQueue.add(new SensorEventContainer(event));
+                push_ret = mMagnQueue.push(mQueueW);
             }
             else if(type == mGyroType) {
-                mGyroQueue.add(new SensorEventContainer(event));
+                push_ret = mGyroQueue.push(mQueueW);
             }
             if(mPW != null) {
-                while(FlushData() == true);
+                synchronized (mThread) {
+                    mThread.notify();
+                }
+            }
+            if(!push_ret){
+                mOverFlow++;
+                mTextView.setText( String.format("OverFlow!!!: %d", mOverFlow) );
             }
         }
     }
