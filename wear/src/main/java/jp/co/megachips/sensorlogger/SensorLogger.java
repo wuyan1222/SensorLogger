@@ -155,6 +155,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         setContentView(R.layout.activity_sensor_logger);
         mPowerManager = (PowerManager)getSystemService(POWER_SERVICE);
         mWL = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SensorLogger");
+        mWL.acquire();
         mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
         final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
         stub.setOnLayoutInflatedListener(new WatchViewStub.OnLayoutInflatedListener() {
@@ -207,12 +208,10 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     @Override
     protected void onResume() {
         super.onResume();
-        mWL.acquire();
     }
 
     @Override
     protected void onPause() {
-        mWL.release();
         super.onPause();
     }
 
@@ -249,6 +248,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             catch (IOException e) {
             }
         }
+        mWL.release();
         super.onDestroy();
     }
 
