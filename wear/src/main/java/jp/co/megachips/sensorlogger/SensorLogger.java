@@ -1,8 +1,8 @@
 package jp.co.megachips.sensorlogger;
 
-import android.app.Activity;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.PowerManager;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.WatchViewStub;
 import android.widget.TextView;
@@ -11,15 +11,14 @@ import android.hardware.SensorManager;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorEvent;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.util.Date;
 import java.text.SimpleDateFormat;
 import java.io.File;
 import java.io.FileOutputStream;
-import java.io.PrintWriter;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.LinkedList;
-import java.util.Queue;
 
 public class SensorLogger extends WearableActivity implements Runnable, SensorEventListener {
 
@@ -29,9 +28,10 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
 
     private final Thread mThread = new Thread(this);
     private TextView mTextView = null;
+    private PowerManager mPowerManager;
+    private PowerManager.WakeLock mWL;
     private SensorManager mSensorManager;
-    private FileOutputStream mFS = null;
-    private PrintWriter mPW = null;
+    private BufferedWriter mBW = null;
 
     private int mAcclType = 0;
     private int mMagnType = 0;
@@ -153,6 +153,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         super.onCreate(savedInstanceState);
         setAmbientEnabled();
         setContentView(R.layout.activity_sensor_logger);
+        mPowerManager = (PowerManager)getSystemService(POWER_SERVICE);
+        mWL = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SensorLogger");
         mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
         final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
         stub.setOnLayoutInflatedListener(new WatchViewStub.OnLayoutInflatedListener() {
@@ -174,10 +176,9 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             dir.mkdir();
             File file = new File (dir, fname + ".txt");
             try {
-                mFS = new FileOutputStream(file);
-                mPW = new PrintWriter(mFS);
+                mBW = new BufferedWriter(new FileWriter(file));
             }
-            catch (FileNotFoundException e) {
+            catch (IOException e) {
             }
         }
         if(mSensorManager != null) {
@@ -206,10 +207,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     @Override
     protected void onResume() {
         super.onResume();
+        mWL.acquire();
     }
 
     @Override
     protected void onPause() {
+        mWL.release();
         super.onPause();
     }
 
@@ -224,6 +227,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             synchronized (mThread) {
                 if(mSensorManager != null) {
                     mSensorManager.unregisterListener(this);
+                    mWL = null;
                     mSensorManager = null;
                 }
                 mThread.notify();
@@ -237,15 +241,10 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         }
         catch (Exception e) {
         }
-        if(mPW != null) {
-            mPW.close();
-            mPW = null;
-        }
-        if(mFS != null) {
+        if(mBW != null) {
             try {
-                mFS.flush();
-                mFS.close();
-                mFS = null;
+                mBW.close();
+                mBW = null;
             }
             catch (IOException e) {
             }
@@ -344,8 +343,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                 str += " na na na";
             }
             if (enable) {
-                str += String.format(" na na na na na %f", (float)SamplingPeriodUs/1000000.0);
-                mPW.println(str);
+                str += String.format(" na na na na na %f\n", (float)SamplingPeriodUs/1000000.0);
+                try {
+                    mBW.write(str);
+                }
+                catch (IOException e){
+                }
                 mCounter += SamplingPeriodUs * 1000;
             }
         }
@@ -387,7 +390,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             else if(type == mGyroType) {
                 push_ret = mGyroQueue.push(mQueueW);
             }
-            if(mPW != null) {
+            if(mBW != null) {
                 synchronized (mThread) {
                     mThread.notify();
                 }
