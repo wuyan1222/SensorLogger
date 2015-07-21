@@ -226,6 +226,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             synchronized (mThread) {
                 if(mSensorManager != null) {
                     mSensorManager.unregisterListener(this);
+                    mWL.release();
                     mWL = null;
                     mSensorManager = null;
                 }
@@ -248,7 +249,6 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             catch (IOException e) {
             }
         }
-        mWL.release();
         super.onDestroy();
     }
 
