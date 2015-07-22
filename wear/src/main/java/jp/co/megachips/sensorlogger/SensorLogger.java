@@ -16,8 +16,6 @@ import java.io.FileWriter;
 import java.util.Date;
 import java.text.SimpleDateFormat;
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 
 public class SensorLogger extends WearableActivity implements Runnable, SensorEventListener {
@@ -92,7 +90,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             }
         }
         synchronized boolean push(SensorData data) {
-            boolean ret;
+            boolean ret = true;
             if(mNum == mDepth){
                 ret = false;
             }
@@ -105,16 +103,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                 if(mDepth <= mBot){
                     mBot = 0;
                 }
-                ret = true;
-            }
-            else{
-                ret = false;
             }
             return ret;
         }
         synchronized int size() { return mNum; }
         synchronized boolean peek(SensorData data) {
-            boolean ret;
+            boolean ret = true;
             if(mNum <= 0){
                 mNum = 0;
                 ret = false;
@@ -124,10 +118,6 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                 data.values[0] = mRingData[mTop].values[0];
                 data.values[1] = mRingData[mTop].values[1];
                 data.values[2] = mRingData[mTop].values[2];
-                ret = true;
-            }
-            else{
-                ret = false;
             }
             return ret;
         }
@@ -298,7 +288,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                         break;
                     }
                     else {
-                        mGyroQueue.pop(mQueueR);
+                        mGyroQueue.pop(null);
                     }
                 }
                 if(mGyroQueue.size() == 0){
@@ -315,7 +305,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                         break;
                     }
                     else {
-                        mAcclQueue.pop(mQueueR);
+                        mAcclQueue.pop(null);
                     }
                 }
                 if(mAcclQueue.size() == 0){
@@ -332,7 +322,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                         break;
                     }
                     else {
-                        mMagnQueue.pop(mQueueR);
+                        mMagnQueue.pop(null);
                     }
                 }
                 if(mMagnQueue.size() == 0){
@@ -365,7 +355,11 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                     }
                     mThread.wait();
                 }
-                while ( FlushData() );
+                while (true) {
+                    if(!FlushData()){
+                        break;
+                    }
+                }
             }
         }
         catch (Exception e) {
