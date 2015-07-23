@@ -177,12 +177,9 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             public void onLayoutInflated(WatchViewStub stub) {
                 mTextView = (TextView) stub.findViewById(R.id.text);
                 String str = "";
-                str += "Accl: ";
-                str += (mAcclType == 0) ? "false\n" : "true\n";
-                str += "Magn: ";
-                str += (mMagnType == 0) ? "false\n" : "true\n";
-                str += "Gyro: ";
-                str += (mGyroType == 0) ? "false\n" : "true\n";
+                str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
+                str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
+                str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
                 mTextView.setText(str);
             }
         });
