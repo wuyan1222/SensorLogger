@@ -5,6 +5,7 @@ import android.os.Environment;
 import android.os.PowerManager;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.WatchViewStub;
+import android.util.Log;
 import android.widget.TextView;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
@@ -19,6 +20,8 @@ import java.io.File;
 import java.io.IOException;
 
 public class SensorLogger extends WearableActivity implements Runnable, SensorEventListener {
+
+    private String TAG = "sensorlogger";
 
     private final int SamplingPeriodUs = 10 * 1000;
     private final int MaxReportLatencyUs = 0 * 1000 * 1000;
@@ -140,8 +143,28 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     SensorData mQueueR = null;
     SensorData mQueueW = null;
 
-    public void mkFile(){
-
+    public void renameFile(){
+        if(null != mBW){
+            try {
+                mBW.close();
+                mBW = null;
+            }catch (IOException e){
+            }
+        }
+        if (isExternalStorageWritable()) {
+            SimpleDateFormat form = new SimpleDateFormat("yyyyMMdd_HHmmss");
+            String fname = form.format(new Date());
+            File root = android.os.Environment.getExternalStorageDirectory();
+            File dir = new File(root.getAbsolutePath() + "/SensorLogger");
+            File file = new File(dir, fname + ".txt");
+            try {
+                mBW = new BufferedWriter(new FileWriter(file));
+                Log.i(TAG, "mkFile: mBW = new BufferdWriter");
+            }
+            catch (IOException e) {
+                Log.e(TAG, "mkFile: IOException");
+            }
+        }
     }
 
     @Override
@@ -159,9 +182,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             public void onLayoutInflated(WatchViewStub stub) {
                 mTextView = (TextView) stub.findViewById(R.id.text);
                 String str = "";
-                str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
-                str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
-                str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
+                str += "Accl: ";
+                str += (mAcclType == 0) ? "false\n" : "true\n";
+                str += "Magn: ";
+                str += (mMagnType == 0) ? "false\n" : "true\n";
+                str += "Gyro: ";
+                str += (mGyroType == 0) ? "false\n" : "true\n";
                 mTextView.setText(str);
             }
         });
@@ -341,6 +367,10 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             if (enable) {
                 str += String.format(" na na na na na %f\n", (float)SamplingPeriodUs/1000000.0);
                 try {
+                    if(c>3000){
+                        renameFile();
+                        c=0;
+                    }
                     mBW.write(str);
                 }
                 catch (IOException e){
@@ -366,6 +396,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                         break;
                     }else{
                         c++;
+                        Log.v(TAG, "c="+c);
                     }
                 }
             }
