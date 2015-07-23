@@ -5,7 +5,6 @@ import android.os.Environment;
 import android.os.PowerManager;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.WatchViewStub;
-import android.util.Log;
 import android.widget.TextView;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
