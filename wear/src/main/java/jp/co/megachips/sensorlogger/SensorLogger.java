@@ -21,8 +21,6 @@ import java.io.IOException;
 
 public class SensorLogger extends WearableActivity implements Runnable, SensorEventListener {
 
-    private String TAG = "sensorlogger";
-
     private final int SamplingPeriodUs = 10 * 1000;
     private final int MaxReportLatencyUs = 0 * 1000 * 1000;
     private int mOverFlow = 0;
@@ -159,10 +157,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             File file = new File(dir, fname + ".txt");
             try {
                 mBW = new BufferedWriter(new FileWriter(file));
-                Log.i(TAG, "mkFile: mBW = new BufferdWriter");
             }
             catch (IOException e) {
-                Log.e(TAG, "mkFile: IOException");
             }
         }
     }
@@ -396,7 +392,6 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                         break;
                     }else{
                         c++;
-                        Log.v(TAG, "c="+c);
                     }
                 }
             }
