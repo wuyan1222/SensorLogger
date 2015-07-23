@@ -367,7 +367,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             if (enable) {
                 str += String.format(" na na na na na %f\n", (float)SamplingPeriodUs/1000000.0);
                 try {
-                    if(c>3000){
+                    if(c>60000){
                         renameFile();
                         c=0;
                     }
