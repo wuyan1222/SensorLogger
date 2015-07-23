@@ -36,6 +36,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     private int mGyroType = 0;
     private long mCounter = 0;
 
+    private long c = 0;
+
     class TargetSensorType {
         public int type;
         public boolean wakeUp;
@@ -137,6 +139,10 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     SensorEventQueue mGyroQueue = null;
     SensorData mQueueR = null;
     SensorData mQueueW = null;
+
+    public void mkFile(){
+
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -358,6 +364,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                 while (true) {
                     if(!FlushData()){
                         break;
+                    }else{
+                        c++;
                     }
                 }
             }
