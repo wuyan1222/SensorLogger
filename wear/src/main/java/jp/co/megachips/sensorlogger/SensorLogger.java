@@ -1,5 +1,7 @@
 package jp.co.megachips.sensorlogger;
 
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.PowerManager;
@@ -88,6 +90,16 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         }
         return 0;
     }
+
+    public String getVersionName(){
+        PackageInfo packageInfo = null;
+        try{
+            packageInfo = getPackageManager().getPackageInfo(getPackageName(), PackageManager.GET_META_DATA);
+        }catch (PackageManager.NameNotFoundException e){
+        }
+        return packageInfo.versionName;
+    }
+
 
     public class SensorData {
         public long timestamp = 0;
@@ -193,6 +205,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             public void onLayoutInflated(WatchViewStub stub) {
                 mTextView = (TextView) stub.findViewById(R.id.text);
                 String str = "";
+                str += "SensorLogger version: " + getVersionName() + "\n";
                 str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
                 str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
                 str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
