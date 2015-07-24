@@ -5,6 +5,7 @@ import android.os.Environment;
 import android.os.PowerManager;
 import android.support.wearable.activity.WearableActivity;
 import android.support.wearable.view.WatchViewStub;
+import android.util.Log;
 import android.widget.TextView;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
@@ -19,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 
 public class SensorLogger extends WearableActivity implements Runnable, SensorEventListener {
+    private final String TAG = "SensorLogger";
 
     private final int SamplingPeriodUs = 10 * 1000;
     private final int MaxReportLatencyUs = 0 * 1000 * 1000;
@@ -34,6 +36,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     private int mAcclType = 0;
     private int mMagnType = 0;
     private int mGyroType = 0;
+    private int mPresType = 0;
+
     private long mCounter = 0;
 
     class TargetSensorType {
@@ -59,6 +63,11 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, false),
             new TargetSensorType(Sensor.TYPE_GYROSCOPE, true),
             new TargetSensorType(Sensor.TYPE_GYROSCOPE, false),
+    };
+
+    private final TargetSensorType[] mPresPriorList = {
+            new TargetSensorType(Sensor.TYPE_PRESSURE, true),
+            new TargetSensorType(Sensor.TYPE_PRESSURE, false),
     };
 
     private int SensorRegsit(TargetSensorType[] list, int max_report_latency_us) {
@@ -135,6 +144,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     SensorEventQueue mAcclQueue = null;
     SensorEventQueue mMagnQueue = null;
     SensorEventQueue mGyroQueue = null;
+    SensorEventQueue mPresQueue = null;
     SensorData mQueueR = null;
     SensorData mQueueW = null;
 
@@ -147,6 +157,9 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         mWL = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SensorLogger");
         mWL.acquire();
         mSensorManager = (SensorManager)getSystemService(SENSOR_SERVICE);
+        for(Sensor p : mSensorManager.getSensorList(Sensor.TYPE_ALL)) {
+            Log.i(TAG, p.toString());
+        }
         final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
         stub.setOnLayoutInflatedListener(new WatchViewStub.OnLayoutInflatedListener() {
             @Override
@@ -156,6 +169,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                 str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
                 str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
                 str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
+                str += "Pres: "; str += (mPresType == 0) ? "false\n" : "true\n";
                 mTextView.setText(str);
             }
         });
@@ -179,17 +193,20 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             mAcclQueue = new SensorEventQueue(100);
             mMagnQueue = new SensorEventQueue(100);
             mGyroQueue = new SensorEventQueue(100);
+            mPresQueue = new SensorEventQueue(100);
             mQueueR = new SensorData();
             mQueueW = new SensorData();
             // Regist sensors
             mAcclType = SensorRegsit(mAcclPriorList, MaxReportLatencyUs);
             mMagnType = SensorRegsit(mMagnPriorList, MaxReportLatencyUs);
             mGyroType = SensorRegsit(mGyroPriorList, MaxReportLatencyUs);
+            mPresType = SensorRegsit(mPresPriorList, MaxReportLatencyUs);
             if(mTextView != null){
                 String str = "";
                 str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
                 str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
                 str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
+                str += "Pres: "; str += (mPresType == 0) ? "false\n" : "true\n";
                 mTextView.setText(str);
             }
         }
@@ -279,6 +296,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                         mCounter = mQueueR.timestamp;
                     }
                 }
+                if(mPresType != 0) {
+                    mGyroQueue.peek(mQueueR);
+                    if (mCounter < mQueueR.timestamp) {
+                        mCounter = mQueueR.timestamp;
+                    }
+                }
             }
             str += String.format("0x%x 0x%x", System.currentTimeMillis(), mCounter);
             if(mGyroType != 0) {
@@ -332,8 +355,27 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             else {
                 str += " na na na";
             }
+            // temperature
+            str += " na na na";
+            if(mPresType != 0) {
+                while ( mPresQueue.peek(mQueueR) ) {
+                    if (mCounter <= mQueueR.timestamp) {
+                        str += String.format(" na %e", mQueueR.values[0]);
+                        break;
+                    }
+                    else {
+                        mPresQueue.pop(null);
+                    }
+                }
+                if(mPresQueue.size() == 0){
+                    enable = false;
+                }
+            }
+            else {
+                str += " na na";
+            }
             if (enable) {
-                str += String.format(" na na na na na %f\n", (float)SamplingPeriodUs/1000000.0);
+                str += String.format(" %f\n", (float)SamplingPeriodUs/1000000.0);
                 try {
                     mBW.write(str);
                 }
@@ -383,6 +425,9 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             }
             else if(type == mGyroType) {
                 push_ret = mGyroQueue.push(mQueueW);
+            }
+            else if(type == mPresType) {
+                push_ret = mPresQueue.push(mQueueW);
             }
             if(mBW != null) {
                 synchronized (mThread) {
