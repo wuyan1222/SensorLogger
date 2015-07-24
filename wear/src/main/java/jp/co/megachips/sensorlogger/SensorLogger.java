@@ -39,8 +39,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     private String mOutputFileName;
     private File mOutputDir;
 
-    private int divCount = 1;
-    private long flushCounter = 0;
+    private int mDivCount = 1;
+    private long mFlushCounter = 0;
     public static final int FLUSH_COUNT_MAX = 60000;
 
     class TargetSensorType {
@@ -154,11 +154,11 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             }
         }
         if (isExternalStorageWritable()) {
-            String serialNum = String.format("_%03d", divCount);
+            String serialNum = String.format("_%03d", mDivCount);
             File file = new File(mOutputDir, mOutputFileName + serialNum + ".txt");
             try {
                 mBW = new BufferedWriter(new FileWriter(file));
-                divCount++;
+                mDivCount++;
             }
             catch (IOException e) {
             }
@@ -381,9 +381,9 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                     if(!FlushData()){
                         break;
                     }else{
-                        flushCounter++;
-                        if(flushCounter > FLUSH_COUNT_MAX){
-                            flushCounter=0;
+                        mFlushCounter++;
+                        if(mFlushCounter > FLUSH_COUNT_MAX){
+                            mFlushCounter=0;
                             changeWriteFile();
                         }
                     }
