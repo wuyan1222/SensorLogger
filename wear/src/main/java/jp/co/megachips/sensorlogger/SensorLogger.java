@@ -13,6 +13,7 @@ import android.hardware.SensorEvent;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.text.DecimalFormat;
 import java.util.Date;
 import java.text.SimpleDateFormat;
 import java.io.File;
@@ -36,7 +37,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     private int mGyroType = 0;
     private long mCounter = 0;
 
-    private long c = 0;
+    private String fname;
+    private File dir;
+
+    private int divCount = 1;
+    private long flushCounter = 0;
+    public static final int FLUSH_COUNT_MAX = 60000;
 
     class TargetSensorType {
         public int type;
@@ -140,7 +146,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     SensorData mQueueR = null;
     SensorData mQueueW = null;
 
-    public void renameFile(){
+    public void changeWriteFile(){
         if(null != mBW){
             try {
                 mBW.close();
@@ -149,11 +155,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             }
         }
         if (isExternalStorageWritable()) {
-            SimpleDateFormat form = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String fname = form.format(new Date());
-            File root = android.os.Environment.getExternalStorageDirectory();
-            File dir = new File(root.getAbsolutePath() + "/SensorLogger");
-            File file = new File(dir, fname + ".txt");
+            String serialNum = new DecimalFormat("_000").format(divCount);
+            File file = new File(dir, fname + serialNum + ".txt");
             try {
                 mBW = new BufferedWriter(new FileWriter(file));
             }
@@ -185,11 +188,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         });
         if(isExternalStorageWritable()) {
             SimpleDateFormat form = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            String fname = form.format( new Date() );
+            fname = form.format(new Date());
             File root = android.os.Environment.getExternalStorageDirectory();
-            File dir = new File (root.getAbsolutePath() + "/SensorLogger");
+            dir = new File (root.getAbsolutePath() + "/SensorLogger");
             dir.mkdir();
-            File file = new File (dir, fname + ".txt");
+            String serialNum = new DecimalFormat("_000").format(divCount);
+            File file = new File (dir, fname + serialNum + ".txt");
             try {
                 mBW = new BufferedWriter(new FileWriter(file));
             }
@@ -359,10 +363,6 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             if (enable) {
                 str += String.format(" na na na na na %f\n", (float)SamplingPeriodUs/1000000.0);
                 try {
-                    if(c>60000){
-                        renameFile();
-                        c=0;
-                    }
                     mBW.write(str);
                 }
                 catch (IOException e){
@@ -387,7 +387,12 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
                     if(!FlushData()){
                         break;
                     }else{
-                        c++;
+                        flushCounter++;
+                        if(flushCounter>FLUSH_COUNT_MAX){
+                            flushCounter=0;
+                            divCount++;
+                            changeWriteFile();
+                        }
                     }
                 }
             }
