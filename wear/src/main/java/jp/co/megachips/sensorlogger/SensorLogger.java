@@ -1,14 +1,14 @@
 package jp.co.megachips.sensorlogger;
 
-import android.content.pm.PackageInfo;
-import android.content.pm.PackageManager;
-import android.os.Bundle;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.app.Service;
+import android.content.Intent;
 import android.os.Environment;
+import android.os.IBinder;
 import android.os.PowerManager;
-import android.support.wearable.activity.WearableActivity;
-import android.support.wearable.view.WatchViewStub;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
-import android.widget.TextView;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
 import android.hardware.SensorEventListener;
@@ -21,7 +21,7 @@ import java.text.SimpleDateFormat;
 import java.io.File;
 import java.io.IOException;
 
-public class SensorLogger extends WearableActivity implements Runnable, SensorEventListener {
+public class SensorLogger extends Service implements Runnable, SensorEventListener {
     private final String TAG = "SensorLogger";
 
     private final int SamplingPeriodUs = 10 * 1000;
@@ -29,7 +29,6 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     private int mOverFlow = 0;
 
     private final Thread mThread = new Thread(this);
-    private TextView mTextView = null;
     private PowerManager mPowerManager;
     private PowerManager.WakeLock mWL;
     private SensorManager mSensorManager;
@@ -48,6 +47,8 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     private int mDivCount = 1;
     private long mFlushCounter = 0;
     public static final int FLUSH_COUNT_MAX = 60000;
+
+    private Intent mBroadcastIntent = new Intent();
 
     class TargetSensorType {
         public int type;
@@ -90,16 +91,6 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         }
         return 0;
     }
-
-    public String getVersionName(){
-        PackageInfo packageInfo = null;
-        try{
-            packageInfo = getPackageManager().getPackageInfo(getPackageName(), PackageManager.GET_META_DATA);
-        }catch (PackageManager.NameNotFoundException e){
-        }
-        return packageInfo.versionName;
-    }
-
 
     public class SensorData {
         public long timestamp = 0;
@@ -188,10 +179,7 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
     }
 
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setAmbientEnabled();
-        setContentView(R.layout.activity_sensor_logger);
+    public int onStartCommand(Intent intent, int flags, int startId) {
         mPowerManager = (PowerManager)getSystemService(POWER_SERVICE);
         mWL = mPowerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SensorLogger");
         mWL.acquire();
@@ -199,20 +187,6 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
         for(Sensor p : mSensorManager.getSensorList(Sensor.TYPE_ALL)) {
             Log.i(TAG, p.toString());
         }
-        final WatchViewStub stub = (WatchViewStub) findViewById(R.id.watch_view_stub);
-        stub.setOnLayoutInflatedListener(new WatchViewStub.OnLayoutInflatedListener() {
-            @Override
-            public void onLayoutInflated(WatchViewStub stub) {
-                mTextView = (TextView) stub.findViewById(R.id.text);
-                String str = "";
-                str += "SensorLogger version: " + getVersionName() + "\n";
-                str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
-                str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
-                str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
-                str += "Pres: "; str += (mPresType == 0) ? "false\n" : "true\n";
-                mTextView.setText(str);
-            }
-        });
         if(isExternalStorageWritable()) {
             SimpleDateFormat form = new SimpleDateFormat("yyyyMMdd_HHmmss");
             mOutputFileName = form.format(new Date());
@@ -236,34 +210,23 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
             mMagnType = SensorRegsit(mMagnPriorList, MaxReportLatencyUs);
             mGyroType = SensorRegsit(mGyroPriorList, MaxReportLatencyUs);
             mPresType = SensorRegsit(mPresPriorList, MaxReportLatencyUs);
-            if(mTextView != null){
-                String str = "";
-                str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
-                str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
-                str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
-                str += "Pres: "; str += (mPresType == 0) ? "false\n" : "true\n";
-                mTextView.setText(str);
-            }
+
+            String str = "";
+            str += "Accl: "; str += (mAcclType == 0) ? "false\n" : "true\n";
+            str += "Magn: "; str += (mMagnType == 0) ? "false\n" : "true\n";
+            str += "Gyro: "; str += (mGyroType == 0) ? "false\n" : "true\n";
+            str += "Pres: "; str += (mPresType == 0) ? "false\n" : "true\n";
+
+            mBroadcastIntent.putExtra("message", str);
+            mBroadcastIntent.setAction(TAG);
+            getBaseContext().sendBroadcast(mBroadcastIntent);
         }
+        showNotification();
+        return START_STICKY;
     }
 
     @Override
-    protected void onResume() {
-        super.onResume();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-    }
-
-    @Override
-    public void onEnterAmbient(Bundle ambientDetails) {
-        super.onEnterAmbient(ambientDetails);
-    }
-
-    @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         try {
             synchronized (mThread) {
                 if(mSensorManager != null) {
@@ -451,38 +414,56 @@ public class SensorLogger extends WearableActivity implements Runnable, SensorEv
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if(mTextView != null) {
-            boolean push_ret = true;
-            int type = event.sensor.getType();
-            mQueueW.timestamp = event.timestamp;
-            mQueueW.values[0] = event.values[0];
-            mQueueW.values[1] = event.values[1];
-            mQueueW.values[2] = event.values[2];
-            if(type == mAcclType) {
-                push_ret = mAcclQueue.push(mQueueW);
+        boolean push_ret = true;
+        int type = event.sensor.getType();
+        mQueueW.timestamp = event.timestamp;
+        mQueueW.values[0] = event.values[0];
+        mQueueW.values[1] = event.values[1];
+        mQueueW.values[2] = event.values[2];
+        if(type == mAcclType) {
+            push_ret = mAcclQueue.push(mQueueW);
+        }
+        else if(type == mMagnType) {
+            push_ret = mMagnQueue.push(mQueueW);
+        }
+        else if(type == mGyroType) {
+            push_ret = mGyroQueue.push(mQueueW);
+        }
+        else if(type == mPresType) {
+            push_ret = mPresQueue.push(mQueueW);
+        }
+        if(mBW != null) {
+            synchronized (mThread) {
+                mThread.notify();
             }
-            else if(type == mMagnType) {
-                push_ret = mMagnQueue.push(mQueueW);
-            }
-            else if(type == mGyroType) {
-                push_ret = mGyroQueue.push(mQueueW);
-            }
-            else if(type == mPresType) {
-                push_ret = mPresQueue.push(mQueueW);
-            }
-            if(mBW != null) {
-                synchronized (mThread) {
-                    mThread.notify();
-                }
-            }
-            if(!push_ret){
-                mOverFlow++;
-                mTextView.setText( String.format("OverFlow!!!: %d", mOverFlow) );
-            }
+        }
+        if(!push_ret){
+            mOverFlow++;
+            mBroadcastIntent.putExtra("message", String.format("OverFlow!!!: %d", mOverFlow) );
+            mBroadcastIntent.setAction(TAG);
+            getBaseContext().sendBroadcast(mBroadcastIntent);
         }
     }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
+    }
+
+    private void showNotification(){
+        Intent intent = new Intent(this, MainActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getService(this, 0, intent, 0);
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(getApplicationContext());
+        builder.setContentIntent(pendingIntent);
+        builder.setContentTitle("SensorLogger is running.");
+        builder.setContentText("");
+        builder.setSmallIcon(0);
+        NotificationManager notificationManager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        notificationManager.notify(0, builder.build());
+        startForeground(1, builder.build());
+    }
+
+    @Override
+    public IBinder onBind(Intent intent){
+        throw new UnsupportedOperationException("Not yet supported");
     }
 }
