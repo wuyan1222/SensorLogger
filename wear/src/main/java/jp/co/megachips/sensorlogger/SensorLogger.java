@@ -126,20 +126,33 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             return ret;
         }
         synchronized int size() { return mNum; }
-        synchronized boolean peek(SensorData data) {
+        synchronized boolean peek(SensorData data, int dist) {
             boolean ret = true;
-            if(mNum <= 0){
-                mNum = 0;
+            if(mNum <= dist){
+                if(0 == dist) {
+                    mNum = 0;
+                }
                 ret = false;
             }
-            else if(data != null){
-                data.timestamp = mRingData[mTop].timestamp;
-                data.values[0] = mRingData[mTop].values[0];
-                data.values[1] = mRingData[mTop].values[1];
-                data.values[2] = mRingData[mTop].values[2];
+            else if(data != null) {
+                if (mTop + dist < mDepth) {
+                    data.timestamp = mRingData[mTop + dist].timestamp;
+                    data.values[0] = mRingData[mTop + dist].values[0];
+                    data.values[1] = mRingData[mTop + dist].values[1];
+                    data.values[2] = mRingData[mTop + dist].values[2];
+                }else{
+                    data.timestamp = mRingData[mTop + dist - mDepth].timestamp;
+                    data.values[0] = mRingData[mTop + dist - mDepth].values[0];
+                    data.values[1] = mRingData[mTop + dist - mDepth].values[1];
+                    data.values[2] = mRingData[mTop + dist - mDepth].values[2];
+                }
             }
             return ret;
         }
+        synchronized boolean peek(SensorData data){
+            return peek(data, 0);
+        }
+
         synchronized boolean pop(SensorData data) {
             boolean ret = peek(data);
             if(ret){
@@ -303,8 +316,9 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             }
             str += String.format("0x%x 0x%x", System.currentTimeMillis(), mCounter);
             if(mGyroType != 0) {
-                while ( mGyroQueue.peek(mQueueR) ) {
+                while ( mGyroQueue.peek(mQueueR, 1) ) {
                     if (mCounter <= mQueueR.timestamp) {
+                        mGyroQueue.peek(mQueueR);
                         str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
                     }
@@ -312,7 +326,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                         mGyroQueue.pop(null);
                     }
                 }
-                if(mGyroQueue.size() == 0){
+                if (mGyroQueue.size() <= 1) {
                     enable = false;
                 }
             }
@@ -320,8 +334,9 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                 str += " na na na";
             }
             if(mAcclType != 0) {
-                while ( mAcclQueue.peek(mQueueR) ) {
+                while ( mAcclQueue.peek(mQueueR, 1) ) {
                     if (mCounter <= mQueueR.timestamp) {
+                        mAcclQueue.peek(mQueueR);
                         str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
                     }
@@ -329,7 +344,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                         mAcclQueue.pop(null);
                     }
                 }
-                if(mAcclQueue.size() == 0){
+                if (mAcclQueue.size() <= 1) {
                     enable = false;
                 }
             }
@@ -337,8 +352,9 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                 str += " na na na";
             }
             if(mMagnType != 0) {
-                while ( mMagnQueue.peek(mQueueR) ) {
+                while ( mMagnQueue.peek(mQueueR, 1) ) {
                     if (mCounter <= mQueueR.timestamp) {
+                        mMagnQueue.peek(mQueueR);
                         str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
                     }
@@ -346,7 +362,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                         mMagnQueue.pop(null);
                     }
                 }
-                if(mMagnQueue.size() == 0){
+                if (mMagnQueue.size() <= 1) {
                     enable = false;
                 }
             }
@@ -439,9 +455,11 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         }
         if(!push_ret){
             mOverFlow++;
-            mBroadcastIntent.putExtra("message", String.format("OverFlow!!!: %d", mOverFlow) );
-            mBroadcastIntent.setAction(TAG);
-            getBaseContext().sendBroadcast(mBroadcastIntent);
+            if (mOverFlow <= 1000 || mOverFlow % 100 == 0) {
+                mBroadcastIntent.putExtra("message", String.format("OverFlow!!!: %d", mOverFlow));
+                mBroadcastIntent.setAction(TAG);
+                getBaseContext().sendBroadcast(mBroadcastIntent);
+            }
         }
     }
 
