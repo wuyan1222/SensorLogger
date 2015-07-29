@@ -251,9 +251,20 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                 mThread.notify();
             }
             mThread.join();
+            mQueueW.timestamp = mCounter + SamplingPeriodUs * 1000 ;
+            for(int i=0; i<3; i++) {
+                mQueueW.values[i] = 0;
+            }
+            mAcclQueue.push(mQueueW);
+            mMagnQueue.push(mQueueW);
+            mGyroQueue.push(mQueueW);
+            mPresQueue.push(mQueueW);
+            while(FlushData()){
+            }
             mAcclQueue = null;
             mMagnQueue = null;
             mGyroQueue = null;
+            mPresQueue = null;
             mQueueR = null;
             mQueueW = null;
         }
@@ -317,7 +328,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             str += String.format("0x%x 0x%x", System.currentTimeMillis(), mCounter);
             if(mGyroType != 0) {
                 while ( mGyroQueue.peek(mQueueR, 1) ) {
-                    if (mCounter <= mQueueR.timestamp) {
+                    if (mCounter < mQueueR.timestamp) {
                         mGyroQueue.peek(mQueueR);
                         str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
@@ -335,7 +346,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             }
             if(mAcclType != 0) {
                 while ( mAcclQueue.peek(mQueueR, 1) ) {
-                    if (mCounter <= mQueueR.timestamp) {
+                    if (mCounter < mQueueR.timestamp) {
                         mAcclQueue.peek(mQueueR);
                         str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
@@ -353,7 +364,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             }
             if(mMagnType != 0) {
                 while ( mMagnQueue.peek(mQueueR, 1) ) {
-                    if (mCounter <= mQueueR.timestamp) {
+                    if (mCounter < mQueueR.timestamp) {
                         mMagnQueue.peek(mQueueR);
                         str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
                         break;
@@ -372,8 +383,9 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             // temperature
             str += " na na na";
             if(mPresType != 0) {
-                while ( mPresQueue.peek(mQueueR) ) {
-                    if (mCounter <= mQueueR.timestamp) {
+                while ( mPresQueue.peek(mQueueR, 1) ) {
+                    if (mCounter < mQueueR.timestamp) {
+                        mPresQueue.peek(mQueueR);
                         str += String.format(" na %e", mQueueR.values[0]);
                         break;
                     }
@@ -381,7 +393,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                         mPresQueue.pop(null);
                     }
                 }
-                if(mPresQueue.size() == 0){
+                if(mPresQueue.size() <= 1){
                     enable = false;
                 }
             }
