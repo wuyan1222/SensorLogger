@@ -24,6 +24,8 @@ import java.io.IOException;
 public class SensorLogger extends Service implements Runnable, SensorEventListener {
     private final String TAG = "SensorLogger";
 
+    private NotificationManagerCompat mNotificationManager = null;
+
     private final int SamplingPeriodUs = 10 * 1000;
     private final int MaxReportLatencyUs = 0 * 1000 * 1000;
     private int mOverFlow = 0;
@@ -235,6 +237,9 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             getBaseContext().sendBroadcast(mBroadcastIntent);
         }
         showNotification();
+        if(mNotificationManager != null) {
+            mNotificationManager.cancelAll();
+        }
         return START_STICKY;
     }
 
@@ -488,8 +493,8 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         builder.setContentTitle("SensorLogger is running.");
         builder.setContentText("Swipe to open the app.");
         builder.setSmallIcon(R.drawable.card_background);
-        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-        notificationManager.notify(0, builder.build());
+        mNotificationManager = NotificationManagerCompat.from(this);
+        mNotificationManager.notify(0, builder.build());
         startForeground(1, builder.build());
     }
 
