@@ -237,9 +237,6 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             getBaseContext().sendBroadcast(mBroadcastIntent);
         }
         showNotification();
-        if(mNotificationManager != null) {
-            mNotificationManager.cancelAll();
-        }
         return START_STICKY;
     }
 
@@ -282,6 +279,9 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             }
             catch (IOException e) {
             }
+        }
+        if(mNotificationManager != null) {
+            mNotificationManager.cancelAll();
         }
         super.onDestroy();
     }
@@ -494,7 +494,6 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         builder.setContentText("Swipe to open the app.");
         builder.setSmallIcon(R.drawable.card_background);
         mNotificationManager = NotificationManagerCompat.from(this);
-        mNotificationManager.notify(0, builder.build());
         startForeground(1, builder.build());
     }
 
