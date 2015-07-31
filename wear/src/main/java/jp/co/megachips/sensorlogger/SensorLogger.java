@@ -1,6 +1,5 @@
 package jp.co.megachips.sensorlogger;
 
-import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
@@ -8,6 +7,7 @@ import android.os.Environment;
 import android.os.IBinder;
 import android.os.PowerManager;
 import android.support.v4.app.NotificationCompat;
+import android.support.v4.app.NotificationManagerCompat;
 import android.util.Log;
 import android.hardware.Sensor;
 import android.hardware.SensorManager;
@@ -481,13 +481,14 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
 
     private void showNotification(){
         Intent intent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getService(this, 0, intent, 0);
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 0);
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getApplicationContext());
         builder.setContentIntent(pendingIntent);
         builder.setContentTitle("SensorLogger is running.");
-        builder.setContentText("");
-        builder.setSmallIcon(0);
-        NotificationManager notificationManager = (NotificationManager)getSystemService(NOTIFICATION_SERVICE);
+        builder.setContentText("Swipe to open the app.");
+        builder.setSmallIcon(R.drawable.card_background);
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
         notificationManager.notify(0, builder.build());
         startForeground(1, builder.build());
     }
