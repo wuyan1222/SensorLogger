@@ -71,7 +71,8 @@ public class MainActivity extends WearableActivity {
     public class MyBroadcastReceiver extends BroadcastReceiver{
         @Override
         public void onReceive(Context context, Intent intent){
-            String str = intent.getExtras().getString("message");
+            String str = "SensorLogger version: " + getVersionName() + "\n";
+            str += intent.getExtras().getString("message");
             mTextView.setText(str);
         }
     }
