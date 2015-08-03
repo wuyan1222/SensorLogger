@@ -491,12 +491,13 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
     private void showNotification(){
         Intent intent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, 0);
-
         NotificationCompat.Builder builder = new NotificationCompat.Builder(getApplicationContext());
         builder.setContentIntent(pendingIntent);
         builder.setContentTitle("SensorLogger is running.");
-        builder.setContentText("Swipe to open the app.");
+        builder.setContentText("Touch to open the app.");
         builder.setSmallIcon(R.drawable.card_background);
+        builder.extend(new NotificationCompat.WearableExtender().setContentAction(0)
+                .addAction(new NotificationCompat.Action.Builder(R.drawable.card_background, "", pendingIntent).build()));
         mNotificationManager = NotificationManagerCompat.from(this);
         startForeground(1, builder.build());
     }
