@@ -21,6 +21,7 @@ public class MainActivity extends WearableActivity {
     private int mGyroType = 0;
     private int mPresType = 0;
     private TextView mTextView = null;
+    MyBroadcastReceiver mReceiver = new MyBroadcastReceiver();
 
     public String getVersionName(){
         PackageInfo packageInfo = null;
@@ -55,23 +56,24 @@ public class MainActivity extends WearableActivity {
             }
         });
 
-        MyBroadcastReceiver receiver = new MyBroadcastReceiver();
         IntentFilter intentFilter = new IntentFilter();
         intentFilter.addAction(TAG);
-        registerReceiver(receiver, intentFilter);
+        registerReceiver(mReceiver, intentFilter);
     }
 
     @Override
     public void onDestroy(){
         Intent intent = new Intent(this, SensorLogger.class);
         stopService(intent);
+        unregisterReceiver(mReceiver);
         super.onDestroy();
     }
 
     public class MyBroadcastReceiver extends BroadcastReceiver{
         @Override
         public void onReceive(Context context, Intent intent){
-            String str = intent.getExtras().getString("message");
+            String str = "SensorLogger version: " + getVersionName() + "\n";
+            str += intent.getExtras().getString("message");
             mTextView.setText(str);
         }
     }
