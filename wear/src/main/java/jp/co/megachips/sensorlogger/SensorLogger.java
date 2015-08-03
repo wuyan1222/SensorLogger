@@ -49,6 +49,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
     private int mDivCount = 1;
     private long mFlushCounter = 0;
     public static final int FLUSH_COUNT_MAX = 60000;
+    public static final float GRAVITY = 9.80665F;
 
     private Intent mBroadcastIntent = new Intent();
 
@@ -353,7 +354,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                 while ( mAcclQueue.peek(mQueueR, 1) ) {
                     if (mCounter < mQueueR.timestamp) {
                         mAcclQueue.peek(mQueueR);
-                        str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
+                        str += String.format(" %e %e %e", mQueueR.values[0]/GRAVITY, mQueueR.values[1]/GRAVITY, mQueueR.values[2]/GRAVITY);
                         break;
                     }
                     else {
@@ -371,7 +372,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                 while ( mMagnQueue.peek(mQueueR, 1) ) {
                     if (mCounter < mQueueR.timestamp) {
                         mMagnQueue.peek(mQueueR);
-                        str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
+                        str += String.format(" %e %e %e", mQueueR.values[0]/100, mQueueR.values[1]/100, mQueueR.values[2]/100);
                         break;
                     }
                     else {
