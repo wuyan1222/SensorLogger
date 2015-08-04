@@ -47,10 +47,10 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         if(sensor != null){
             switch (sensor){
                 case "Accl":
-                    str = (flag) ? String.format(" %e %e %e", values[0], values[1], values[2]) : " na na na";
+                    str = (flag) ? String.format(" %e %e %e", values[0]/SensorManager.STANDARD_GRAVITY, values[1]/SensorManager.STANDARD_GRAVITY, values[2]/SensorManager.STANDARD_GRAVITY) : " na na na";
                     break;
                 case "Magn":
-                    str = (flag) ? String.format(" %e %e %e", values[0], values[1], values[2]) : " na na na";
+                    str = (flag) ? String.format(" %e %e %e", values[0]/100, values[1]/100, values[2]/100) : " na na na";
                     break;
                 case "Gyro":
                     str = (flag) ? String.format(" %e %e %e", values[0], values[1], values[2]) : " na na na";
@@ -60,7 +60,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                     break;
                 case "Temp":
                     str = " na na na";
-
+                    break;
                 default:
                     break;
             }
