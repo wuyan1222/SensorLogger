@@ -75,7 +75,8 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
 
     private int mDivCount = 1;
     private long mFlushCounter = 0;
-    public static final int FLUSH_COUNT_MAX = 60000;
+    private static final int FLUSH_COUNT_MAX = 60000;
+    private static final int QUEUE_DEPTH = 100;
 
     private Intent mBroadcastIntent = new Intent();
 
@@ -255,7 +256,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             // create Queue
             for (String sensor : mSensors){
                 if(mSensorType.get(sensor).type != 0) {
-                    mSensorEventQueue.put(sensor, new SensorEventQueue(100));
+                    mSensorEventQueue.put(sensor, new SensorEventQueue(QUEUE_DEPTH));
                 }
             }
             mQueueR = new SensorData();
