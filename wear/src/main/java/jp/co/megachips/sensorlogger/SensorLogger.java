@@ -39,8 +39,8 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
     private BufferedWriter mBW = null;
 
     private static final String[] mSensors = {"Gyro", "Accl", "Magn", "Temp", "Pres"};
-    private Map<String, TargetSensorType> mSensorType = new HashMap<String, TargetSensorType>(){};
-    private Map<String, SensorEventQueue> mSensorEventQueue = new HashMap<String, SensorEventQueue>(){};
+    private Map<String, TargetSensorType> mSensorType = new HashMap<>();
+    private Map<String, SensorEventQueue> mSensorEventQueue = new HashMap<>();
 
     public String StringFormat(String sensor, float[] values, boolean flag){
         String str = "";
@@ -86,40 +86,36 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         TargetSensorType(int type, boolean wakeUp, boolean uncalibrated) { this.type = type; this.wakeUp = wakeUp; this.uncalibrated = uncalibrated; }
     }
 
-    private final TargetSensorType[] mAcclPriorList = {
-            new TargetSensorType(Sensor.TYPE_ACCELEROMETER, true, false),
-            new TargetSensorType(Sensor.TYPE_ACCELEROMETER, false, false),
-    };
-
-    private final TargetSensorType[] mMagnPriorList = {
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, true, true),
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, false, true),
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, true, false),
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, false, false),
-    };
-
-    private final TargetSensorType[] mGyroPriorList = {
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, true, true),
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, false, true),
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE, true, false),
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE, false, false),
-    };
-
-    private final TargetSensorType[] mPresPriorList = {
-            new TargetSensorType(Sensor.TYPE_PRESSURE, true, false),
-            new TargetSensorType(Sensor.TYPE_PRESSURE, false, false),
-    };
-
-    private final TargetSensorType[] mTempPriorList = {
-            new TargetSensorType(0, false, false),
-    };
-
-    private Map<String, TargetSensorType[]> mSensorPriorList = new HashMap<String, TargetSensorType[]>(){
-        {put("Accl", mAcclPriorList);}
-        {put("Magn", mMagnPriorList);}
-        {put("Gyro", mGyroPriorList);}
-        {put("Pres", mPresPriorList);}
-        {put("Temp", mTempPriorList);}
+    private final Map<String, TargetSensorType[]> mSensorPriorList = new HashMap<String, TargetSensorType[]>(){
+        {put("Accl", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_ACCELEROMETER, true, false),
+                new TargetSensorType(Sensor.TYPE_ACCELEROMETER, false, false),
+                }
+        );}
+        {put("Magn", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, true, true),
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, false, true),
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, true, false),
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, false, false),
+                }
+        );}
+        {put("Gyro", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, true, true),
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, false, true),
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE, true, false),
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE, false, false),
+                }
+        );}
+        {put("Temp", new TargetSensorType[]{
+                        new TargetSensorType(Sensor.TYPE_AMBIENT_TEMPERATURE, true, false),
+                        new TargetSensorType(Sensor.TYPE_AMBIENT_TEMPERATURE, false, false),
+                }
+        );}
+        {put("Pres", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_PRESSURE, true, false),
+                new TargetSensorType(Sensor.TYPE_PRESSURE, false, false),
+                }
+        );}
     };
 
     private TargetSensorType SensorRegsit(TargetSensorType[] list, int max_report_latency_us) {
