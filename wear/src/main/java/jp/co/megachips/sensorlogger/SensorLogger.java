@@ -20,6 +20,8 @@ import java.util.Date;
 import java.text.SimpleDateFormat;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SensorLogger extends Service implements Runnable, SensorEventListener {
     private final String TAG = "SensorLogger";
@@ -36,10 +38,35 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
     private SensorManager mSensorManager;
     private BufferedWriter mBW = null;
 
-    private TargetSensorType mAcclType = new TargetSensorType(0, false, false);
-    private TargetSensorType mMagnType = new TargetSensorType(0, false, false);
-    private TargetSensorType mGyroType = new TargetSensorType(0, false, false);
-    private TargetSensorType mPresType = new TargetSensorType(0, false, false);
+    private static final String[] mSensors = {"Gyro", "Accl", "Magn", "Temp", "Pres"};
+    private Map<String, TargetSensorType> mSensorType = new HashMap<>();
+    private Map<String, SensorEventQueue> mSensorEventQueue = new HashMap<>();
+
+    public String StringFormat(String sensor, float[] values, boolean flag){
+        String str = "";
+        if(sensor != null){
+            switch (sensor){
+                case "Accl":
+                    str = (flag) ? String.format(" %e %e %e", values[0]/SensorManager.STANDARD_GRAVITY, values[1]/SensorManager.STANDARD_GRAVITY, values[2]/SensorManager.STANDARD_GRAVITY) : " na na na";
+                    break;
+                case "Magn":
+                    str = (flag) ? String.format(" %e %e %e", values[0]/100, values[1]/100, values[2]/100) : " na na na";
+                    break;
+                case "Gyro":
+                    str = (flag) ? String.format(" %e %e %e", values[0], values[1], values[2]) : " na na na";
+                    break;
+                case "Pres":
+                    str = (flag) ? String.format(" na %e", values[0]) : " na na";
+                    break;
+                case "Temp":
+                    str = " na na na";
+                    break;
+                default:
+                    break;
+            }
+        }
+        return str;
+    }
 
     private long mCounter = 0;
 
@@ -48,7 +75,8 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
 
     private int mDivCount = 1;
     private long mFlushCounter = 0;
-    public static final int FLUSH_COUNT_MAX = 60000;
+    private static final int FLUSH_COUNT_MAX = 60000;
+    private static final int QUEUE_DEPTH = 100;
 
     private Intent mBroadcastIntent = new Intent();
 
@@ -59,28 +87,36 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         TargetSensorType(int type, boolean wakeUp, boolean uncalibrated) { this.type = type; this.wakeUp = wakeUp; this.uncalibrated = uncalibrated; }
     }
 
-    private final TargetSensorType[] mAcclPriorList = {
-            new TargetSensorType(Sensor.TYPE_ACCELEROMETER, true, false),
-            new TargetSensorType(Sensor.TYPE_ACCELEROMETER, false, false),
-    };
-
-    private final TargetSensorType[] mMagnPriorList = {
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, true, true),
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, false, true),
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, true, false),
-            new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, false, false),
-    };
-
-    private final TargetSensorType[] mGyroPriorList = {
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, true, true),
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, false, true),
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE, true, false),
-            new TargetSensorType(Sensor.TYPE_GYROSCOPE, false, false),
-    };
-
-    private final TargetSensorType[] mPresPriorList = {
-            new TargetSensorType(Sensor.TYPE_PRESSURE, true, false),
-            new TargetSensorType(Sensor.TYPE_PRESSURE, false, false),
+    private final Map<String, TargetSensorType[]> mSensorPriorList = new HashMap<String, TargetSensorType[]>(){
+        {put("Accl", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_ACCELEROMETER, true, false),
+                new TargetSensorType(Sensor.TYPE_ACCELEROMETER, false, false),
+                }
+        );}
+        {put("Magn", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, true, true),
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD_UNCALIBRATED, false, true),
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, true, false),
+                new TargetSensorType(Sensor.TYPE_MAGNETIC_FIELD, false, false),
+                }
+        );}
+        {put("Gyro", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, true, true),
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE_UNCALIBRATED, false, true),
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE, true, false),
+                new TargetSensorType(Sensor.TYPE_GYROSCOPE, false, false),
+                }
+        );}
+        {put("Temp", new TargetSensorType[]{
+                        new TargetSensorType(Sensor.TYPE_AMBIENT_TEMPERATURE, true, false),
+                        new TargetSensorType(Sensor.TYPE_AMBIENT_TEMPERATURE, false, false),
+                }
+        );}
+        {put("Pres", new TargetSensorType[]{
+                new TargetSensorType(Sensor.TYPE_PRESSURE, true, false),
+                new TargetSensorType(Sensor.TYPE_PRESSURE, false, false),
+                }
+        );}
     };
 
     private TargetSensorType SensorRegsit(TargetSensorType[] list, int max_report_latency_us) {
@@ -170,10 +206,6 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             return ret;
         }
     }
-    SensorEventQueue mAcclQueue = null;
-    SensorEventQueue mMagnQueue = null;
-    SensorEventQueue mGyroQueue = null;
-    SensorEventQueue mPresQueue = null;
     SensorData mQueueR = null;
     SensorData mQueueW = null;
 
@@ -217,25 +249,25 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         if(mSensorManager != null) {
             mThread.setPriority(Thread.MAX_PRIORITY);
             mThread.start();
+            // Regist sensors
+            for (String sensor : mSensors){
+                mSensorType.put(sensor, SensorRegsit(mSensorPriorList.get(sensor), MaxReportLatencyUs));
+            }
             // create Queue
-            mAcclQueue = new SensorEventQueue(100);
-            mMagnQueue = new SensorEventQueue(100);
-            mGyroQueue = new SensorEventQueue(100);
-            mPresQueue = new SensorEventQueue(100);
+            for (String sensor : mSensors){
+                if(mSensorType.get(sensor).type != 0) {
+                    mSensorEventQueue.put(sensor, new SensorEventQueue(QUEUE_DEPTH));
+                }
+            }
             mQueueR = new SensorData();
             mQueueW = new SensorData();
-            // Regist sensors
-            mAcclType = SensorRegsit(mAcclPriorList, MaxReportLatencyUs);
-            mMagnType = SensorRegsit(mMagnPriorList, MaxReportLatencyUs);
-            mGyroType = SensorRegsit(mGyroPriorList, MaxReportLatencyUs);
-            mPresType = SensorRegsit(mPresPriorList, MaxReportLatencyUs);
 
             String str = "";
-            str += "Accl"; str += (mAcclType.uncalibrated) ? "uncalibrated: " : ": "; str += (mAcclType.type == 0) ? "false\n" : "true\n";
-            str += "Magn"; str += (mMagnType.uncalibrated) ? "uncalibrated: " : ": "; str += (mMagnType.type == 0) ? "false\n" : "true\n";
-            str += "Gyro"; str += (mGyroType.uncalibrated) ? "uncalibrated: " : ": "; str += (mGyroType.type == 0) ? "false\n" : "true\n";
-            str += "Pres"; str += (mPresType.uncalibrated) ? "uncalibrated: " : ": "; str += (mPresType.type == 0) ? "false\n" : "true\n";
-
+            for(String sensor : mSensors){
+                str += sensor;
+                str += (mSensorType.get(sensor).uncalibrated) ? " uncalibrated: " : ": ";
+                str += (mSensorType.get(sensor).type == 0) ? "false\n" : "true\n";
+            }
             mBroadcastIntent.putExtra("message", str);
             mBroadcastIntent.setAction(TAG);
             getBaseContext().sendBroadcast(mBroadcastIntent);
@@ -261,16 +293,15 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             for(int i=0; i<3; i++) {
                 mQueueW.values[i] = 0;
             }
-            mAcclQueue.push(mQueueW);
-            mMagnQueue.push(mQueueW);
-            mGyroQueue.push(mQueueW);
-            mPresQueue.push(mQueueW);
+            for(String sensor : mSensors){
+                if(mSensorEventQueue.containsKey(sensor)) {
+                    mSensorEventQueue.get(sensor).push(mQueueW);
+                }
+            }
             while(FlushData()){
             }
-            mAcclQueue = null;
-            mMagnQueue = null;
-            mGyroQueue = null;
-            mPresQueue = null;
+            mSensorEventQueue.clear();
+            mSensorType.clear();
             mQueueR = null;
             mQueueW = null;
         }
@@ -298,116 +329,42 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
     private boolean FlushData() {
         boolean enable = true;
         String str ="";
-        if ( (mAcclType.type != 0) && (mAcclQueue.size() == 0) ) {
-            enable = false;
-        }
-        if ( (mMagnType.type != 0) && (mMagnQueue.size() == 0) ) {
-            enable = false;
-        }
-        if ( (mGyroType.type != 0) && (mGyroQueue.size() == 0) ) {
-            enable = false;
+        for (final String sensor: mSensors) {
+            if ((mSensorType.get(sensor).type != 0) && (mSensorEventQueue.get(sensor).size() == 0)) {
+                enable = false;
+            }
         }
         if(enable) {
             if (mCounter == 0) {
-                if(mAcclType.type != 0) {
-                    mAcclQueue.peek(mQueueR);
-                    if (mCounter < mQueueR.timestamp) {
-                        mCounter = mQueueR.timestamp;
-                    }
-                }
-                if(mMagnType.type != 0) {
-                    mMagnQueue.peek(mQueueR);
-                    if (mCounter < mQueueR.timestamp) {
-                        mCounter = mQueueR.timestamp;
-                    }
-                }
-                if(mGyroType.type != 0) {
-                    mGyroQueue.peek(mQueueR);
-                    if (mCounter < mQueueR.timestamp) {
-                        mCounter = mQueueR.timestamp;
-                    }
-                }
-                if(mPresType.type != 0) {
-                    mGyroQueue.peek(mQueueR);
-                    if (mCounter < mQueueR.timestamp) {
-                        mCounter = mQueueR.timestamp;
+                for(final String sensor: mSensors){
+                    if(mSensorType.get(sensor).type != 0){
+                        mSensorEventQueue.get(sensor).peek(mQueueR);
+                        if (mCounter < mQueueR.timestamp) {
+                            mCounter = mQueueR.timestamp;
+                        }
                     }
                 }
             }
             str += String.format("0x%x 0x%x", System.currentTimeMillis(), mCounter);
-            if(mGyroType.type != 0) {
-                while ( mGyroQueue.peek(mQueueR, 1) ) {
-                    if (mCounter < mQueueR.timestamp) {
-                        mGyroQueue.peek(mQueueR);
-                        str += String.format(" %e %e %e", mQueueR.values[0], mQueueR.values[1], mQueueR.values[2]);
-                        break;
+            for (String sensor: mSensors){
+                if (mSensorType.get(sensor).type != 0){
+                    while (mSensorEventQueue.get(sensor).peek(mQueueR, 1)){
+                        if (mCounter < mQueueR.timestamp){
+                            mSensorEventQueue.get(sensor).peek(mQueueR);
+                            str += StringFormat(sensor, mQueueR.values, true);
+                            break;
+                        }
+                        else{
+                            mSensorEventQueue.get(sensor).pop(null);
+                        }
                     }
-                    else {
-                        mGyroQueue.pop(null);
-                    }
-                }
-                if (mGyroQueue.size() <= 1) {
-                    enable = false;
-                }
-            }
-            else {
-                str += " na na na";
-            }
-            if(mAcclType.type != 0) {
-                while ( mAcclQueue.peek(mQueueR, 1) ) {
-                    if (mCounter < mQueueR.timestamp) {
-                        mAcclQueue.peek(mQueueR);
-                        str += String.format(" %e %e %e", mQueueR.values[0]/SensorManager.STANDARD_GRAVITY, mQueueR.values[1]/SensorManager.STANDARD_GRAVITY, mQueueR.values[2]/SensorManager.STANDARD_GRAVITY);
-                        break;
-                    }
-                    else {
-                        mAcclQueue.pop(null);
+                    if (mSensorEventQueue.get(sensor).size() <= 1){
+                        enable = false;
                     }
                 }
-                if (mAcclQueue.size() <= 1) {
-                    enable = false;
+                else {
+                    str += StringFormat(sensor, null, false);
                 }
-            }
-            else {
-                str += " na na na";
-            }
-            if(mMagnType.type != 0) {
-                while ( mMagnQueue.peek(mQueueR, 1) ) {
-                    if (mCounter < mQueueR.timestamp) {
-                        mMagnQueue.peek(mQueueR);
-                        str += String.format(" %e %e %e", mQueueR.values[0]/100, mQueueR.values[1]/100, mQueueR.values[2]/100);
-                        break;
-                    }
-                    else {
-                        mMagnQueue.pop(null);
-                    }
-                }
-                if (mMagnQueue.size() <= 1) {
-                    enable = false;
-                }
-            }
-            else {
-                str += " na na na";
-            }
-            // temperature
-            str += " na na na";
-            if(mPresType.type != 0) {
-                while ( mPresQueue.peek(mQueueR, 1) ) {
-                    if (mCounter < mQueueR.timestamp) {
-                        mPresQueue.peek(mQueueR);
-                        str += String.format(" na %e", mQueueR.values[0]);
-                        break;
-                    }
-                    else {
-                        mPresQueue.pop(null);
-                    }
-                }
-                if(mPresQueue.size() <= 1){
-                    enable = false;
-                }
-            }
-            else {
-                str += " na na";
             }
             if (enable) {
                 str += String.format(" %f\n", (float)SamplingPeriodUs/1000000.0);
@@ -457,17 +414,11 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         mQueueW.values[0] = event.values[0];
         mQueueW.values[1] = event.values[1];
         mQueueW.values[2] = event.values[2];
-        if(type == mAcclType.type) {
-            push_ret = mAcclQueue.push(mQueueW);
-        }
-        else if(type == mMagnType.type) {
-            push_ret = mMagnQueue.push(mQueueW);
-        }
-        else if(type == mGyroType.type) {
-            push_ret = mGyroQueue.push(mQueueW);
-        }
-        else if(type == mPresType.type) {
-            push_ret = mPresQueue.push(mQueueW);
+        for(String sensor : mSensors){
+            if(type == mSensorType.get(sensor).type){
+                push_ret = mSensorEventQueue.get(sensor).push(mQueueW);
+                break;
+            }
         }
         if(mBW != null) {
             synchronized (mThread) {
