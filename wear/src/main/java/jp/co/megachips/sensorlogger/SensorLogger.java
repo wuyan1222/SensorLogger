@@ -38,7 +38,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
     private SensorManager mSensorManager;
     private BufferedWriter mBW = null;
 
-    private static final String[] mSensors = {"Gyro", "Accl", "Magn", "Pres", "Temp"};
+    private static final String[] mSensors = {"Gyro", "Accl", "Magn", "Temp", "Pres"};
     private Map<String, TargetSensorType> mSensorType = new HashMap<String, TargetSensorType>(){};
     private Map<String, SensorEventQueue> mSensorEventQueue = new HashMap<String, SensorEventQueue>(){};
 
