@@ -18,8 +18,8 @@ Stand alone sensor logger for Android Wear
 ~~~
 time timestamp wx wy wz gx gy gz mx my mz na na na na na Ts
 ~~~
- * msec: time of msec at writing (Hexiadecimal)
- * timestamp: time stamp for sensor data (Hexiadecimal)
+ * msec: time of msec at writing (Hexiadecimal) [msec]
+ * timestamp: time stamp for sensor data (Hexiadecimal) [usec]
  * wx, wy, wz: Angular velocity [rad/sec]
  * gx, gy, gz: Acceleration [G]
- * mx, my, mz: Magnetic force [uT]
+ * mx, my, mz: Magnetic force [Gauss]
