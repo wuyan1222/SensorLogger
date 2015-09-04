@@ -3,6 +3,7 @@ package jp.co.megachips.sensorlogger;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.os.Build;
 import android.os.Environment;
 import android.os.IBinder;
 import android.os.PowerManager;
@@ -123,7 +124,12 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         TargetSensorType ret = new TargetSensorType(0, false, false);
         for(TargetSensorType type: list){
             Sensor sensor;
-            sensor = mSensorManager.getDefaultSensor(type.type, type.wakeUp);
+            if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+                sensor = mSensorManager.getDefaultSensor(type.type);
+            }
+            else{
+                sensor = mSensorManager.getDefaultSensor(type.type, type.wakeUp);
+            }
             if(sensor != null) {
                 mSensorManager.registerListener(this, sensor, SamplingPeriodUs, max_report_latency_us);
                 ret.type = type.type;
