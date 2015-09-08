@@ -7,9 +7,9 @@ android {
     defaultConfig {
         applicationId "jp.co.megachips.sensorlogger"
         minSdkVersion 19
-        targetSdkVersion 22
-        versionCode 6
-        versionName "1.6"
+        targetSdkVersion 20
+        versionCode 7
+        versionName "1.7"
     }
     buildTypes {
         release {
