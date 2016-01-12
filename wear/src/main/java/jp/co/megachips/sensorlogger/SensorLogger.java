@@ -71,7 +71,8 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
 
     private long mCounter = 0;
 
-    private String mOutputFileName;
+    private String mOutputFileNameBase;
+    private String mOutputFileName = "";
     private File mOutputDir;
 
     private int mDivCount = 1;
@@ -225,7 +226,8 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         }
         if (isExternalStorageWritable()) {
             String serialNum = String.format("_%03d", mDivCount);
-            File file = new File(mOutputDir, mOutputFileName + serialNum + ".txt");
+            mOutputFileName = mOutputFileNameBase + serialNum + ".txt";
+            File file = new File(mOutputDir, mOutputFileName);
             try {
                 mBW = new BufferedWriter(new FileWriter(file));
                 mDivCount++;
@@ -233,6 +235,20 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             catch (IOException e) {
             }
         }
+    }
+
+    private void displayStatus(){
+        String str = "";
+        str += "Output File: " + mOutputFileName + "\n";
+        for(String sensor : mSensors){
+            str += sensor;
+            str += (mSensorType.get(sensor).uncalibrated) ? " uncalibrated: " : ": ";
+            str += (mSensorType.get(sensor).type == 0) ? "false\n" : "true\n";
+        }
+
+        mBroadcastIntent.putExtra("message", str);
+        mBroadcastIntent.setAction(TAG);
+        getBaseContext().sendBroadcast(mBroadcastIntent);
     }
 
     @Override
@@ -246,7 +262,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
         }
         if(isExternalStorageWritable()) {
             SimpleDateFormat form = new SimpleDateFormat("yyyyMMdd_HHmmss");
-            mOutputFileName = form.format(new Date());
+            mOutputFileNameBase = form.format(new Date());
             File root = android.os.Environment.getExternalStorageDirectory();
             mOutputDir = new File (root.getAbsolutePath() + "/SensorLogger");
             mOutputDir.mkdir();
@@ -268,17 +284,9 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
             mQueueR = new SensorData();
             mQueueW = new SensorData();
 
-            String str = "";
-            for(String sensor : mSensors){
-                str += sensor;
-                str += (mSensorType.get(sensor).uncalibrated) ? " uncalibrated: " : ": ";
-                str += (mSensorType.get(sensor).type == 0) ? "false\n" : "true\n";
-            }
-            mBroadcastIntent.putExtra("message", str);
-            mBroadcastIntent.setAction(TAG);
-            getBaseContext().sendBroadcast(mBroadcastIntent);
         }
         showNotification();
+        displayStatus();
         return START_STICKY;
     }
 
@@ -403,6 +411,7 @@ public class SensorLogger extends Service implements Runnable, SensorEventListen
                         if(mFlushCounter > FLUSH_COUNT_MAX){
                             mFlushCounter=0;
                             changeWriteFile();
+                            displayStatus();
                         }
                     }
                 }
